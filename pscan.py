@@ -73,12 +73,17 @@ def parse_host(host_arg):
 def try_tcp(ip, port):
     '''Try to establish a TCP connection to the specified IP/Port
     '''
+
     port = int(port)
     try:
         conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         conn.connect((ip, port))
+        # Send a dummy string to help us determine the application running
+        conn.send(b'Test String, please ignore\r\n')
+        result = conn.recv(128).decode().strip()
         # If no exception is thrown, we managed to connect
         print('[+] {0}/tcp OPEN'.format(port))
+        print('[+] Service: {0}'.format(result))
         conn.close()
         return True
     except:

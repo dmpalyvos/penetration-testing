@@ -6,6 +6,12 @@ Port Scanner
 import argparse
 import re
 import socket
+from threading import Thread, Lock
+from queue import Queue
+
+OUTPUT_LOCK = Lock()
+NUM_THREADS = 100
+q = Queue()
 
 
 def parse_port(port_args):
@@ -82,27 +88,36 @@ def try_tcp(ip, port):
         conn.send(b'Test String, please ignore\r\n')
         result = conn.recv(128).decode().strip()
         # If no exception is thrown, we managed to connect
-        print('[+] {0}/tcp OPEN'.format(port))
-        print('[+] Service: {0}'.format(result))
-        conn.close()
-        return True
+        with OUTPUT_LOCK:
+            print('[+] {0}/tcp OPEN'.format(port))
+            print('[+] Service: {0}'.format(result))
     except:
+        pass
         # print('[-] {0}/tcp closed'.format(port))
-        return False
+    finally:
+        conn.close()
+
+
+def worker():
+    while True:
+        args = q.get()
+        try_tcp(args[0], args[1])
+        q.task_done()
 
 
 def scan_host(ip, ports):
     '''Perform a port scan for the given host and ports list
     '''
     print('[*] Started port scan...')
-    socket.setdefaulttimeout(1.0)
-    open_counter = 0
+    socket.setdefaulttimeout(2.0)
     for port in ports:
-        if try_tcp(ip, port):
-            open_counter += 1
+        q.put((ip, port))
 
-    print('[*] {0}/{1} tcp ports open'.format(open_counter, len(ports)))
-
+    for i in range(NUM_THREADS):
+        t = Thread(target=worker)
+        t.daemon = True
+        t.start()
+    q.join()
 
 def main():
 

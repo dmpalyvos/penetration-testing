@@ -11,7 +11,6 @@ from queue import Queue
 
 OUTPUT_LOCK = Lock()
 NUM_THREADS = 100
-q = Queue()
 
 
 def parse_port(port_args):
@@ -98,7 +97,7 @@ def try_tcp(ip, port):
         conn.close()
 
 
-def worker():
+def worker(q):
     while True:
         args = q.get()
         try_tcp(args[0], args[1])
@@ -110,14 +109,17 @@ def scan_host(ip, ports):
     '''
     print('[*] Started port scan...')
     socket.setdefaulttimeout(2.0)
+    q = Queue()
+
     for port in ports:
         q.put((ip, port))
 
     for i in range(NUM_THREADS):
-        t = Thread(target=worker)
+        t = Thread(target=worker, args=(q, ))
         t.daemon = True
         t.start()
     q.join()
+
 
 def main():
 

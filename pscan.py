@@ -5,7 +5,7 @@ Port Scanner
 
 import argparse
 import re
-from socket import *
+import socket
 
 
 def parse_port(port_args):
@@ -22,22 +22,81 @@ def parse_port(port_args):
 
     '''
     if len(port_args) > 1:
-        ports = [int(port) for port in port_args]
-        return ports
+        return port_args
     else:
         # If the argument is a range
         if port_args[0].find('-') > -1:
             port_range = re.split('-', port_args[0])
-            ports = range(int(port_range[0]), int(port_range[1]))
+            ports = range(int(port_range[0]), int(port_range[1])+1)
             return ports
         else:
-            return int(port_args[0])
+            return port_args
 
 
-def is_ip(host):
-    '''Check if a given string is a valid IP address
+def parse_host(host_arg):
+    '''Resolve the hostname and the IP from the given hostname/IP
+
+    This function determines whether the user has given us a hostname or an
+    IP address and takes the necessary actions to determine the other one.
+    If the hostname cannot be determined from the IP, it simply returns an
+    'Unknown' host. If the IP cannot be resolved, the program fails.
+
+    Args:
+        host_arg (string): Either a hostname or an IP address
+
+    Returns:
+        ip, hostname (strings)
+
     '''
-    return re.match(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', host) is not None
+
+    # Determine whether we were given an IP or a hostname
+    # If given a hostname determine the IP and vice versa
+    if re.match(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', host_arg) is not None:
+        ip = host_arg
+        try:
+            host = socket.gethostbyaddr(ip)
+        except:
+            print('Could not resolve hostname')
+            host = 'Unknown'
+    else:
+        host = host_arg
+        try:
+            ip = socket.gethostbyname(host)
+        except:
+            # If we can't find the IP the program must be terminated
+            print('Could not find IP address')
+            exit(1)
+
+    return ip, host
+
+
+def try_tcp(ip, port):
+    '''Try to establish a TCP connection to the specified IP/Port
+    '''
+    port = int(port)
+    try:
+        conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        conn.connect((ip, port))
+        # If no exception is thrown, we managed to connect
+        print('[+] {0}/tcp OPEN'.format(port))
+        conn.close()
+        return True
+    except:
+        # print('[-] {0}/tcp closed'.format(port))
+        return False
+
+
+def scan_host(ip, ports):
+    '''Perform a port scan for the given host and ports list
+    '''
+    print('[*] Started port scan...')
+    socket.setdefaulttimeout(1.0)
+    open_counter = 0
+    for port in ports:
+        if try_tcp(ip, port):
+            open_counter += 1
+
+    print('[*] {0}/{1} tcp ports open'.format(open_counter, len(ports)))
 
 
 def main():
@@ -51,21 +110,13 @@ def main():
                         required=True)
     args = parser.parse_args()
 
-    # Determine whether we were given an IP or a hostname
-    # If given a hostname determine the IP and vice versa
-    if is_ip(args.host):
-        ip = args.host
-        host = gethostbyaddr(ip)
-    else:
-        host = args.host
-        ip = gethostbyname(host)
-
-    # Parse ports argument
+    ip, host = parse_host(args.host)
     ports = parse_port(args.port)
 
     print('[*] Host: {0} ({1})'.format(host, ip))
     print('[*] Ports: {0}'.format(ports))
-    print('[*] Begining port scan...')
+
+    scan_host(ip, ports)
 
 
 if __name__ == '__main__':

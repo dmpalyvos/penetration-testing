@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """
-
+Analyze the word frequencies on the main articles of a website
 """
 import argparse
 import requests
@@ -12,6 +12,9 @@ from collections import defaultdict
 
 
 def load_ignored_words(words_file):
+    '''Load a list of words to ignore from a text file
+    '''
+
     ignored_words = set()
     # Read ignored words from file
     if words_file is not None:
@@ -19,6 +22,7 @@ def load_ignored_words(words_file):
             lines = ignore_file.readlines()
             lines = [line.strip() for line in lines]
             ignored_words = [w for line in lines for w in line.split(' ')]
+        # Keep unique words
         ignored_words = set(ignored_words)
         print('[*] Ignoring the following words')
         print(ignored_words)
@@ -26,18 +30,33 @@ def load_ignored_words(words_file):
     return ignored_words
 
 
-def create_word_list(elements, ignored_words):
+def create_word_list(elements, ignored_words=None):
+    '''Create a list of words given a list of html elements 
+
+    This function splits the sentenctes into words and merges them into one
+    single list. Moreover, it removes punctuation and turns all words to
+    lowercase in order to make frequency analysis easier.
+    If provided with a list of ignored words, it removes those words from
+    the final words list.
+
+    Args:
+        elements: List of HTML elements that the function gets the text from
+        
+        ignored_words: Set of words remove from the final list
+
+    Returns:
+        A list of all the words contained in the given elements
+
+    '''
+
     word_list = []
     for element in elements:
         element_text = element.get_text().strip()
         element_words = element_text.split(' ')
         word_list += element_words
-    return remove_punctuation(word_list, ignored_words)
-
-
-def remove_punctuation(word_list, ignored_words):
     # Remove punctuation
-    removed_punctuation = [''.join(c for c in word if c not in string.punctuation) for word in word_list]
+    removed_punctuation = [''.join(c for c in word if c not in string.punctuation)
+                           for word in word_list]
     # Make lowercase
     lower_list = [w.lower() for w in removed_punctuation]
     # Remove ignored words and words of length 1 
@@ -47,6 +66,8 @@ def remove_punctuation(word_list, ignored_words):
 
 
 def count_frequencies(word_list):
+    '''Create a dictionary of frequencies for each unique word
+    '''
     frequencies = defaultdict(int)    
     for word in word_list:
         frequencies[word] += 1
@@ -64,9 +85,11 @@ def main():
     parser.add_argument('-i', '--ignore', help='Path to ignored words list')
     args = parser.parse_args()
 
+    # Add http if not already present in the url
     if not re.match('^https?://*', args.url):
         args.url = 'http://' + args.url
 
+    # Load ignored words
     ignored_words = load_ignored_words(args.ignore)
 
     # Retrieve page
@@ -81,9 +104,7 @@ def main():
 
     # Parse content
     soup = BeautifulSoup(content, 'html.parser')
-
     elements = soup.find_all(args.element)
-    
     word_list = create_word_list(elements, ignored_words)
     frequencies = count_frequencies(word_list)
 

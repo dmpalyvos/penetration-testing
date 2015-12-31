@@ -11,6 +11,21 @@ import string
 from collections import defaultdict
 
 
+def load_ignored_words(words_file):
+    ignored_words = set()
+    # Read ignored words from file
+    if words_file is not None:
+        with open(words_file, 'r') as ignore_file:
+            lines = ignore_file.readlines()
+            lines = [line.strip() for line in lines]
+            ignored_words = [w for line in lines for w in line.split(' ')]
+        ignored_words = set(ignored_words)
+        print('[*] Ignoring the following words')
+        print(ignored_words)
+
+    return ignored_words
+
+
 def create_word_list(elements, ignored_words):
     word_list = []
     for element in elements:
@@ -52,16 +67,7 @@ def main():
     if not re.match('^https?://*', args.url):
         args.url = 'http://' + args.url
 
-
-    if args.ignore is not None:
-        with open(args.ignore, 'r') as ignore_file:
-            line = ignore_file.readline().strip()
-            ignored_words = line.split(' ')
-        ignored_words = set(ignored_words)
-        print('[*] Ignoring the following words')
-        print(ignored_words)
-    else:
-        ignored_words = set()
+    ignored_words = load_ignored_words(args.ignore)
 
     # Retrieve page
     try:

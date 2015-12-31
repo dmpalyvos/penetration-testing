@@ -1,4 +1,8 @@
-# Simple penetration testing tools written in python
+# Web Scripts 
+
+## Description
+A collection of scripts related to penetration testing, forensics analysis and web content scraping. 
 
 ## Contents
 1. pscan.py -- Port Scanner
+2. spider.py -- Word Frequency Analyzer for a webpage

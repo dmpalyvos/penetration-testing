@@ -12,6 +12,7 @@ from collections import defaultdict
 import time
 import json
 import os
+import operator
 
 
 def load_ignored_words(words_file):
@@ -33,11 +34,14 @@ def load_ignored_words(words_file):
     return ignored_words
 
 
-def retrieve_page(url):
+def retrieve_page(url, base):
     '''Rertrieve the text contents from a URL
     '''
     if url is None:
         return ''
+
+    if not url.startswith('http'):
+        url = base + url 
 
     try:
         print('[+] Retrieving {0}'.format(url))
@@ -60,11 +64,11 @@ def get_element_texts(content, element_type):
     return text
 
 
-def get_element_links(content, element_type):
-    '''Get the links inside the requested elements
+def get_links(content):
+    '''Get all the links of a page
     '''
     soup = BeautifulSoup(content, 'html.parser')
-    elements = soup.select('{0} a'.format(element_type))
+    elements = soup.find_all('a')
     links = [element.get('href') for element in elements]
     return links
 
@@ -104,23 +108,14 @@ def create_word_list(elements, ignored_words=set()):
     return final_list
 
 
-def count_frequencies(word_list):
-    '''Create a dictionary of frequencies for each unique word
-    '''
-    frequencies = defaultdict(int)    
-    for word in word_list:
-        frequencies[word] += 1
-    return frequencies
-
-
 def get_domain(url):
     m = re.match(r'https?://(www\.)?(.+)\..+', url)
     return m.group(2)
 
 
-def follow_links(url, element_type):
+def follow_links(url):
 
-    cache_fname = '{domain}_{element}.json'.format(domain=get_domain(url),element=element_type)
+    cache_fname = '{domain}.json'.format(domain=get_domain(url))
 
     if os.path.isfile(cache_fname):
         print('[*] Loading from cache file {0}'.format(cache_fname))
@@ -128,9 +123,10 @@ def follow_links(url, element_type):
             pages = json.load(cache_file)
             return pages
 
-    content = retrieve_page(url)
-    links = get_element_links(content, element_type)
-    pages = [retrieve_page(link) for link in links]
+
+    content = retrieve_page(url, url)
+    links = get_links(content)
+    pages = [retrieve_page(link, url) for link in links]
 
     print('[*] Saving cache file {0}'.format(cache_fname))
     with open(cache_fname, 'w') as cache_file:
@@ -139,12 +135,26 @@ def follow_links(url, element_type):
     return pages 
 
 
-def mine_url(url, element_type, ignored_words):
+def mine_url(url, ignored_words):
 
-    pages = follow_links(url, element_type)
+    pages = follow_links(url)
     paragraph_list = [get_element_texts(page, 'p') for page in pages]
     word_lists = [create_word_list(paragraphs, ignored_words) for paragraphs in paragraph_list]
     return word_lists
+
+
+def calculate_tf(word_list):
+    tf = defaultdict(int)
+    max_freq = 0
+    for word in word_list:
+        tf[word] += 1
+        if tf[word] > max_freq:
+            max_freq = tf[word]
+
+    for word, freq in tf.items():
+        tf[word] = round(tf[word] / max_freq, 3)
+
+    return tf
 
 
 def main():
@@ -154,7 +164,6 @@ def main():
                                      ' Elements from a URL')
     parser.add_argument('url', help='The html page you want to retrieve all'
                         ' the elements from')
-    parser.add_argument('element', help='The type of html element, e.g. h1')
     parser.add_argument('-i', '--ignore', help='Path to ignored words list')
     args = parser.parse_args()
 
@@ -166,13 +175,12 @@ def main():
     ignored_words = load_ignored_words(args.ignore)
 
     # Parse content
-    word_lists = mine_url(args.url, args.element, ignored_words)
+    word_lists = mine_url(args.url, ignored_words)
     all_words = itertools.chain(*word_lists)
-    frequencies = count_frequencies(all_words)
+    frequencies = calculate_tf(all_words)
     print('[*] Most Frequent Words')
-
     for i, w in enumerate(sorted(frequencies, key=frequencies.get, reverse=True)):
-        if i > 10:
+        if i > 50:
             break
         print(' {0:_<20}: {1: 5}'.format(w, frequencies[w]))
 

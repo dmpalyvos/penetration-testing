@@ -109,12 +109,15 @@ def create_word_list(elements, ignored_words=set()):
 
 
 def get_domain(url):
+    '''Get the domain name of a url (without prefix and suffix
+    '''
     m = re.match(r'https?://(www\.)?(.+)\..+', url)
     return m.group(2)
 
 
 def follow_links(url):
-
+    '''Follow the links on a webpage and return the content
+    '''
     cache_fname = '{domain}.json'.format(domain=get_domain(url))
 
     if os.path.isfile(cache_fname):
@@ -136,7 +139,8 @@ def follow_links(url):
 
 
 def mine_url(url, ignored_words):
-
+    '''Given a url, follow all the links and return lists of words on each page
+    '''
     pages = follow_links(url)
     paragraph_list = [get_element_texts(page, 'p') for page in pages]
     word_lists = [create_word_list(paragraphs, ignored_words) for paragraphs in paragraph_list]
@@ -144,6 +148,8 @@ def mine_url(url, ignored_words):
 
 
 def calculate_tf(word_list):
+    '''Calculate relative term frequencies for a list of words
+    '''
     tf = defaultdict(int)
     max_freq = 0
     for word in word_list:

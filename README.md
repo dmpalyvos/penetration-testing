@@ -5,4 +5,4 @@ A collection of scripts related to penetration testing, forensics analysis and w
 
 ## Contents
 1. pscan.py -- Port Scanner
-2. spider.py -- Word Frequency Analyzer for a webpage
+2. spider.py -- Word Frequency Analysis on a webpage

@@ -9,6 +9,7 @@ import re
 import itertools
 import string
 from collections import defaultdict
+import time
 
 
 def load_ignored_words(words_file):
@@ -28,6 +29,42 @@ def load_ignored_words(words_file):
         print(ignored_words)
 
     return ignored_words
+
+
+def retrieve_page(url):
+    '''Rertrieve the text contents from a URL
+    '''
+    if url is None:
+        return ''
+
+    try:
+        print('[+] Retrieving {0}'.format(url))
+        content = requests.get(url).text
+    except Exception as e:
+        print('[-] Error retrieving page content')
+        print('[-] {0}'.format(e))
+        return ''
+
+    time.sleep(0.2)
+    return content
+
+
+def get_element_texts(content, element_type):
+    '''Get the contents of the requested elements  
+    '''
+    soup = BeautifulSoup(content, 'html.parser')
+    elements = soup.find_all(element_type)
+    text = [element.get_text().strip() for element in elements]
+    return text
+
+
+def get_element_links(content, element_type):
+    '''Get the links inside the requested elements
+    '''
+    soup = BeautifulSoup(content, 'html.parser')
+    elements = soup.select('{0} a'.format(element_type))
+    links = [element.get('href') for element in elements]
+    return links
 
 
 def create_word_list(elements, ignored_words=None):
@@ -51,8 +88,7 @@ def create_word_list(elements, ignored_words=None):
 
     word_list = []
     for element in elements:
-        element_text = element.get_text().strip()
-        element_words = element_text.split(' ')
+        element_words = element.split(' ')
         word_list += element_words
     # Remove punctuation
     removed_punctuation = [''.join(c for c in word if c not in string.punctuation)
@@ -74,6 +110,15 @@ def count_frequencies(word_list):
     return frequencies
 
 
+def mine_element(content, element_type):
+    links = get_element_links(content, element_type)
+    articles = [retrieve_page(link) for link in links]
+    paragraph_list = [get_element_texts(article, 'p') for article in articles]
+    word_lists = [create_word_list(paragraphs) for paragraphs in paragraph_list]
+    all_words = itertools.chain.from_iterable(word_lists)
+    print(all_words) 
+
+
 def main():
 
     # Parse command line arguments
@@ -93,21 +138,14 @@ def main():
     ignored_words = load_ignored_words(args.ignore)
 
     # Retrieve page
-    try:
-        print('[+] Retrieving {0}'.format(args.url))
-        content = requests.get(args.url).text
-        print('[+] OK')
-    except Exception as e:
-        print('[-] Error retrieving page content')
-        print('[-] {0}'.format(e))
-        exit(1)
-
+    content = retrieve_page(args.url)
+    #print(get_element_links(content, args.element))
     # Parse content
-    soup = BeautifulSoup(content, 'html.parser')
-    elements = soup.find_all(args.element)
+    elements = get_element_texts(content, args.element)
     word_list = create_word_list(elements, ignored_words)
-    frequencies = count_frequencies(word_list)
-
+    #frequencies = count_frequencies(word_list)
+    mine_element(content, args.element)
+    exit(1)
     print('[*] Most Frequent Words')
 
     for i, w in enumerate(sorted(frequencies, key=frequencies.get, reverse=True)):

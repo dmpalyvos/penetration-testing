@@ -10,6 +10,8 @@ import itertools
 import string
 from collections import defaultdict
 import time
+import json
+import os
 
 
 def load_ignored_words(words_file):
@@ -67,7 +69,7 @@ def get_element_links(content, element_type):
     return links
 
 
-def create_word_list(elements, ignored_words=None):
+def create_word_list(elements, ignored_words=set()):
     '''Create a list of words given a list of html elements 
 
     This function splits the sentenctes into words and merges them into one
@@ -89,7 +91,8 @@ def create_word_list(elements, ignored_words=None):
     word_list = []
     for element in elements:
         element_words = element.split(' ')
-        word_list += element_words
+        if element_words is not None:
+            word_list += element_words
     # Remove punctuation
     removed_punctuation = [''.join(c for c in word if c not in string.punctuation)
                            for word in word_list]
@@ -110,13 +113,38 @@ def count_frequencies(word_list):
     return frequencies
 
 
-def mine_element(content, element_type):
+def get_domain(url):
+    m = re.match(r'https?://(www\.)?(.+)\..+', url)
+    return m.group(2)
+
+
+def follow_links(url, element_type):
+
+    cache_fname = '{domain}_{element}.json'.format(domain=get_domain(url),element=element_type)
+
+    if os.path.isfile(cache_fname):
+        print('[*] Loading from cache file {0}'.format(cache_fname))
+        with open(cache_fname, 'r') as cache_file:
+            pages = json.load(cache_file)
+            return pages
+
+    content = retrieve_page(url)
     links = get_element_links(content, element_type)
-    articles = [retrieve_page(link) for link in links]
-    paragraph_list = [get_element_texts(article, 'p') for article in articles]
-    word_lists = [create_word_list(paragraphs) for paragraphs in paragraph_list]
-    all_words = itertools.chain.from_iterable(word_lists)
-    print(all_words) 
+    pages = [retrieve_page(link) for link in links]
+
+    print('[*] Saving cache file {0}'.format(cache_fname))
+    with open(cache_fname, 'w') as cache_file:
+        json.dump(pages, cache_file)
+
+    return pages 
+
+
+def mine_url(url, element_type, ignored_words):
+
+    pages = follow_links(url, element_type)
+    paragraph_list = [get_element_texts(page, 'p') for page in pages]
+    word_lists = [create_word_list(paragraphs, ignored_words) for paragraphs in paragraph_list]
+    return word_lists
 
 
 def main():
@@ -137,15 +165,10 @@ def main():
     # Load ignored words
     ignored_words = load_ignored_words(args.ignore)
 
-    # Retrieve page
-    content = retrieve_page(args.url)
-    #print(get_element_links(content, args.element))
     # Parse content
-    elements = get_element_texts(content, args.element)
-    word_list = create_word_list(elements, ignored_words)
-    #frequencies = count_frequencies(word_list)
-    mine_element(content, args.element)
-    exit(1)
+    word_lists = mine_url(args.url, args.element, ignored_words)
+    all_words = itertools.chain(*word_lists)
+    frequencies = count_frequencies(all_words)
     print('[*] Most Frequent Words')
 
     for i, w in enumerate(sorted(frequencies, key=frequencies.get, reverse=True)):
